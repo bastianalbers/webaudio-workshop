@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv='Content-type' content='text/html; charset=utf-8'>
+    <title>Basic Keyboard</title>
+  </head>
+  <body>
+    <div id="keyboard"></div>
+
+    <script src="/qwerty-hancock.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="text/javascript">
+      /*
+        why not throw millions of globals here - sorry ;)
+        only tested to work in chrome
+      */
+
+      var audioContext = new AudioContext();
+
+      var filterCutoff = 500;
+      var vibratoFrequency = 100;
+
+      /*
+        Our "single source of truth"
+      */
+      var currentNotes = {};
+
+      var input = audioContext.createGain();
+
+      /*
+        echo is just always on, because echo :)
+      */
+      var feedback = audioContext.createGain();
+      var delay = audioContext.createDelay();
+      var output = audioContext.createGain();
+      output.connect(audioContext.destination);
+      delay.delayTime.value = 0.2;
+      feedback.gain.value = 0.6;
+      input.connect(output);
+      input.connect(delay);
+      delay.connect(feedback);
+      feedback.connect(delay);
+      feedback.connect(output);
+
+      /*
+        play function returns a playing note object, exposing oscillator, filter and lfo
+      */
+      function play(pitch) {
+        var time = audioContext.currentTime;
+
+        var filter = audioContext.createBiquadFilter();
+        filter.connect(audioContext.destination);
+        // filter out all frequencies above 500 Hz
+        filter.type = 'lowpass';
+        filter.frequency.value = filterCutoff;
+
+        var amp = audioContext.createGain();
+        amp.connect(input);
+        filter.connect(amp);
+
+        var lfo = audioContext.createOscillator();
+        lfo.frequency.value = vibratoFrequency;
+        lfo.connect(amp.gain);
+
+        var oscillator = audioContext.createOscillator();
+        oscillator.connect(filter)
+        oscillator.type = 'sawtooth';
+        oscillator.frequency.value = pitch;
+        oscillator.start(time);
+        lfo.start(time);
+
+        return {
+          oscillator: oscillator,
+          filter: filter,
+          lfo: lfo
+        };
+      }
+
+      /*
+        just your basic Qwerty Hancock example
+      */
+      var keyboard = new QwertyHancock({
+         id: 'keyboard',
+         width: 600,
+         height: 150,
+         octaves: 2,
+         startNote: 'A2',
+         whiteNotesColour: 'white',
+         blackNotesColour: 'black',
+         hoverColour: '#f3e939'
+      });
+
+      keyboard.keyDown = function (note, frequency) {
+        currentNotes[note] = play(frequency);
+      };
+
+      keyboard.keyUp = function (note) {
+        currentNotes[note].oscillator.stop(audioContext.currentTime);
+        currentNotes[note].lfo.stop(audioContext.currentTime);
+      };
+
+      /*
+        socket just listens to deviceorientation data coming in
+      */
+      var socket = io();
+      socket.on('orientation', function (orientation) {
+        filterCutoff = (orientation.beta / 90) * 10000;
+        vibratoFrequency = (orientation.gamma / 360) * 100;
+
+        Object.keys(currentNotes).forEach(function(note) {
+          currentNotes[note].filter.frequency.value = filterCutoff;
+          currentNotes[note].lfo.frequency.value = vibratoFrequency;
+        });
+      });
+
+    </script>
+  </body>
+</html>
+

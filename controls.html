@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv='Content-type' content='text/html; charset=utf-8'>
+    <title>Basic Keyboard</title>
+  </head>
+  <body>
+    <div id="container">CONTROLS</div>
+    <div id="controlvalues"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+
+    <script type="text/javascript">
+      var socket = io();
+      socket.on('connection', function(){
+        socket.emit('controls connected', 'Hi');
+      });
+
+      if (window.DeviceOrientationEvent) {
+        /*
+          this is only tested on iPhone
+          just broadcasts the deviceorientation to all that are listening
+        */
+        window.addEventListener("deviceorientation", function (event) {
+          var orientation = {
+            alpha: event.alpha,
+            beta: event.beta,
+            gamma: event.gamma
+          };
+          socket.emit('orientation', orientation);
+        }, true);
+      }
+    </script>
+
+  </body>
+</html>
